@@ -1,69 +1,164 @@
-# NodeSeek-Signin
+# NodeSeek Auto Sign-in
 
-<div align="center">
-  
-![NodeSeek](https://img.shields.io/badge/NodeSeek-自动签到-green)
-![GitHub stars](https://img.shields.io/github/stars/yowiv/NodeSeek-Signin?style=flat)
-![Python](https://img.shields.io/badge/Language-Python-blue)
-![License](https://img.shields.io/github/license/yowiv/NodeSeek-Signin)
+![Python](https://img.shields.io/badge/Python-3.9%2B-3776AB?logo=python&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white)
+![GitHub Actions](https://img.shields.io/badge/GitHub%20Actions-supported-2088FF?logo=githubactions&logoColor=white)
+![License](https://img.shields.io/badge/license-MIT-green)
 
-</div>
+NodeSeek 自动签到工具，面向个人 VPS、Docker Compose、GitHub Actions 和青龙面板设计。
 
-[Deepflood论坛签到](https://github.com/yowiv/deepflood-Signin)
+它把签到任务拆成几个清晰的阶段：优先使用 Cookie 签到，失效后再用账号密码完成 Turnstile 验证并刷新 Cookie，最后查询近期收益并发送通知。请求层还会在遇到 Cloudflare 挑战时自动尝试备用浏览器指纹，减少因单一指纹失效导致的任务中断。
 
+## 功能
 
-## 📝 项目介绍
+- Cookie 优先，Cookie 失效时按账号配置自动重新登录
+- 支持多账号，Cookie 与 `USERn`/`PASSn` 可以混合使用
+- 支持自建 Turnstile 服务、YesCaptcha 和 CapSolver
+- 支持 Cloudflare 挑战下的 `curl_cffi` 指纹回退
+- 查询最近 30 天签到天数、鸡腿总数和日均收益
+- Docker 持久化最新 Cookie，GitHub Actions 可回写仓库变量
+- 支持 Telegram、Bark、PushPlus、邮件、Webhook 等通知渠道
+- 支持固定时间或时间范围随机调度
 
-这是一个用于 NodeSeek 论坛自动签到的工具，支持通过 GitHub Actions、青龙面板或 Docker Compose 进行定时自动签到操作。签到模式默认为随机签到，帮助用户轻松获取论坛每日"鸡腿"奖励。
+## 快速开始
 
+### 方式一：Docker Compose
 
-## ✨ 功能特点
+```bash
+git clone https://github.com/hysterianeko/nodeseek-auto-signin.git
+cd nodeseek-auto-signin
+cp .env.example .env
+```
 
-- 📅 支持 GitHub Actions 自动运行
-- 🦉 支持青龙面板定时任务
-- 🐳 支持 Docker Compose 一键部署
-- 🍪 支持 Cookie 或账号密码登录方式
-- 👥 支持多账号批量签到
-- 🔐 支持多种验证码解决方案
-  - 自建 CloudFreed 服务（免费）
-  - YesCaptcha 商业服务（付费/赠送）
-- 📱 支持多种通知推送渠道(需在blank.yml添加对应变量)
+编辑 `.env`。如果已经有可用 Cookie，最小配置可以只有：
 
-##  快速开始
+```env
+NS_COOKIE=your_nodeseek_cookie
+RUN_AT=08:00-10:59
+```
 
-1. **获取代码**：Fork/Clone 本仓库，或在青龙面板/Cloudflare Worker 等环境中拉取脚本。
-2. **选择部署方式**：根据自己的运行环境（GitHub Actions、Docker、青龙、Cloudflare Worker）跳转到对应文档完成部署。
-3. **配置变量**：按照 [`docs/configuration/config.md`](docs/configuration/config.md) 填写 `NS_COOKIE`、`USERn/PASSn`、验证码与通知变量；验证码方案差异见 [`docs/configuration/solutions.md`](docs/configuration/solutions.md)。
-4. **验证运行**：在目标环境触发一次任务（或运行 `python test_run.py`）确认签到与通知均正常。
+启动并查看日志：
 
-## 🧱 部署方式一览
+```bash
+docker compose up -d --build
+docker compose logs -f
+```
 
-| 场景 | 文档 | 说明 |
-| --- | --- | --- |
-| GitHub Actions | [`docs/deployment/github-actions.md`](docs/deployment/github-actions.md) | 适合纯云端运行，可结合 `GH_PAT` 自动回写 Cookie |
-| Docker Compose / 本地服务器 | [`docs/deployment/docker-compose.md`](docs/deployment/docker-compose.md) | 支持 `RUN_AT` 定时和 `IN_DOCKER` 持久化 Cookie |
-| 青龙面板 | [`docs/deployment/qinglong-panel.md`](docs/deployment/qinglong-panel.md) | 与青龙定时任务深度集成，沿用面板通知 |
-| Cloudflare Worker | [`docs/deployment/cloudflare-worker.md`](docs/deployment/cloudflare-worker.md) | 适合无服务器场景，可配合第三方验证码服务 |
+容器会挂载 `./cookie`，重新登录成功后的 Cookie 会保存到 `cookie/NS_COOKIE.txt`。该文件已被 `.gitignore` 忽略，请不要手动提交。
 
-> 🎯 以上文档包含详细步骤、示例命令及截图，README 仅保留概览。
+### 方式二：GitHub Actions
 
-##  配置小抄
+Fork 或创建本仓库后，在 `Settings > Secrets and variables > Actions` 中添加配置，再从 `Actions` 页面手动触发一次工作流。工作流文件位于 `.github/workflows/blank.yml`，默认每天按 UTC+8 的时间运行。
 
-- **账户与 Cookie**：全量变量说明见 [`config.md`](docs/configuration/config.md)。支持 `NS_COOKIE` 多账号或 `USERn/PASSn` 自动登录，两者可共存。
-- **验证码方案**：[`solutions.md`](docs/configuration/solutions.md) 对比 CloudFreed、自建接口与 YesCaptcha，并列出必填变量。
-- **通知渠道**：`notify.py` 中的 `push_config` 覆盖 Telegram、Bark、PushPlus、企业微信、邮件等渠道，对应变量也收录在环境变量手册。
-- **GitHub PAT & 自动回写**：如需在 Actions 中自动更新仓库变量 `NS_COOKIE`，请在设置中添加 `GH_PAT`，具体操作步骤详见 GitHub Actions 文档。
-| `NS_COOKIE` | 建议 | - | NodeSeek 论坛的用户 Cookie，多账号使用`&`或换行符分隔 |
-| `USER1`、`USER2`... | 可选 | - | NodeSeek 论坛用户名，当 Cookie 失效时使用 |
-| `PASS1`、`PASS2`... | 可选 | - | NodeSeek 论坛密码 |
-| `NS_RANDOM` | 可选 | true | 是否随机签到（true/false） |
-| `RUN_AT` | 可选 | `09:00-21:00` | **仅Docker Compose可用**。设置定时任务执行时间，支持固定时间 `10:30` 或时间范围 `10:00-18:00` |
-| `SOLVER_TYPE` | 可选 | turnstile | 验证码解决方案（turnstile/yescaptcha） |
-| `API_BASE_URL` | 条件必需 | - | CloudFreed 服务地址，当 SOLVER_TYPE=turnstile 时必填 |
-| `CLIENTT_KEY` | 必需 | - | 验证码服务客户端密钥 |
-| `GH_PAT` | 可选 | - | GitHub Personal Access Token，用于自动更新Cookie变量 |
-| 各类通知变量 | 可选 | - | 支持多种推送通知平台配置 |
+至少需要以下两种配置之一：
 
-## ⚠️ 免责声明
+```text
+NS_COOKIE
+```
 
-本项目仅供学习交流使用，请遵守 NodeSeek 论坛的相关规定和条款。
+或：
+
+```text
+USER1 / PASS1
+```
+
+账号密码模式还需要配置验证码服务。若希望登录后自动更新 `NS_COOKIE`，再添加 `GH_PAT`，并授予该 Token 对目标仓库 Actions variables 的读写权限。
+
+### 方式三：青龙面板
+
+```bash
+ql repo https://github.com/hysterianeko/nodeseek-auto-signin.git
+```
+
+变量配置和定时规则见 [`docs/deployment/qinglong-panel.md`](docs/deployment/qinglong-panel.md)。
+
+## 验证码配置
+
+三种方案的选择只影响“账号密码登录”阶段，已有有效 Cookie 时不需要调用验证码服务。
+
+### CapSolver
+
+```env
+USER1=your_username
+PASS1=your_password
+SOLVER_TYPE=capsolver
+API_BASE_URL=https://api.capsolver.com
+CLIENTT_KEY=your_capsolver_api_key
+```
+
+CapSolver 使用 `AntiTurnstileTaskProxyLess` 任务类型。项目沿用历史变量名 `CLIENTT_KEY`，这里填写 CapSolver API Key。
+
+### YesCaptcha
+
+```env
+SOLVER_TYPE=yescaptcha
+API_BASE_URL=https://api.yescaptcha.com
+CLIENTT_KEY=your_yescaptcha_client_key
+```
+
+国内网络也可以使用 `https://cn.yescaptcha.com`。详细说明见 [`docs/configuration/solutions.md`](docs/configuration/solutions.md)。
+
+### 自建 Turnstile 服务
+
+```env
+SOLVER_TYPE=turnstile
+API_BASE_URL=http://127.0.0.1:3000
+CLIENTT_KEY=your_client_key
+```
+
+完整变量说明见 [`docs/configuration/config.md`](docs/configuration/config.md)。
+
+## 配置与部署文档
+
+| 场景 | 文档 |
+| --- | --- |
+| 所有环境变量 | [`docs/configuration/config.md`](docs/configuration/config.md) |
+| 验证码服务对比 | [`docs/configuration/solutions.md`](docs/configuration/solutions.md) |
+| GitHub Actions | [`docs/deployment/github-actions.md`](docs/deployment/github-actions.md) |
+| Docker Compose | [`docs/deployment/docker-compose.md`](docs/deployment/docker-compose.md) |
+| 青龙面板 | [`docs/deployment/qinglong-panel.md`](docs/deployment/qinglong-panel.md) |
+| Cloudflare Worker | [`docs/deployment/cloudflare-worker.md`](docs/deployment/cloudflare-worker.md) |
+
+## 本地开发
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+pip install -r requirements-dev.txt
+cp .env.example .env
+python -m unittest discover -s tests -v
+```
+
+真实运行前请确认 `.env` 中的账号、Cookie 和验证码配置已经填写。下面的命令会实际访问 NodeSeek，不适合作为无账号的健康检查：
+
+```bash
+python test_run.py
+```
+
+## 项目结构
+
+```text
+nodeseek_sign.py       主签到、登录、统计和 Cookie 持久化流程
+capsolver.py           CapSolver Turnstile 适配器
+yescaptcha.py          YesCaptcha 适配器
+turnstile_solver.py    自建 Turnstile 服务适配器
+scheduler.py           Docker 定时调度器
+notify.py              通知渠道集合
+docker-compose.yml     Docker Compose 配置
+tests/                 不需要真实账号的回归测试
+docs/                  配置和部署文档
+```
+
+## 安全与使用边界
+
+不要把以下内容提交到 Git、Issue、日志或截图中：
+
+- `.env`、Cookie 文件、NodeSeek 账号密码
+- 验证码服务 API Key、Telegram Bot Token、`GH_PAT`
+
+如果凭据曾经暴露，应立即撤销并重新生成。本项目仅供个人自动化和学习使用；使用前请遵守 NodeSeek、Cloudflare 以及验证码服务的条款，控制请求频率，不要进行批量滥用。
+
+## 许可证
+
+本项目以 MIT License 发布，详见 [`LICENSE`](LICENSE)。

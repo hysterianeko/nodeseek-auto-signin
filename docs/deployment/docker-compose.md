@@ -7,8 +7,8 @@
 首先，将整个项目克隆到你的服务器上：
 
 ```bash
-git clone https://github.com/yowiv/NodeSeek-Signin.git
-cd NodeSeek-Signin
+git clone https://github.com/hysterianeko/nodeseek-auto-signin.git
+cd nodeseek-auto-signin
 ```
 
 **第二步：配置环境变量**
@@ -21,7 +21,8 @@ cp .env.example .env
 
 你需要根据注释提示，填写以下关键信息：
 - **账户信息**: `USER1`, `PASS1`, `USER2`, `PASS2` 等。
-- **验证码服务**: 如果使用账号密码登录，必须配置验证码服务。推荐使用 `yescaptcha`，并填入 `CLIENTT_KEY`。
+- **验证码服务**: 如果使用账号密码登录，必须配置验证码服务。可以使用 `yescaptcha` 或 `capsolver`，并填入对应服务的 `CLIENTT_KEY`。
+  - CapSolver 配置：`SOLVER_TYPE=capsolver`、`API_BASE_URL=https://api.capsolver.com`。
 - **定时任务**: `RUN_AT` 变量用于设置签到任务的执行时间。
     - **固定时间**: 如 `10:30`，表示每天上午10点30分执行。
     - **时间范围**: 如 `10:00-18:00`，表示在每天上午10点到下午6点之间随机选择一个时间点执行。
@@ -32,7 +33,7 @@ cp .env.example .env
 在存放 `docker-compose.yml` 和 `.env` 文件的目录下，执行以下命令在后台构建并启动服务：
 
 ```bash
-docker-compose up -d
+docker compose up -d --build
 ```
 
 **第四步：查看日志**
@@ -40,7 +41,7 @@ docker-compose up -d
 你可以使用以下命令实时查看容器的日志，以确认服务是否正常运行和签到是否成功：
 
 ```bash
-docker-compose logs -f
+docker compose logs -f
 ```
 
 **第五步：停止服务**

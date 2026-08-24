@@ -19,3 +19,8 @@ Thumbs.db
 # IDE/Editor configuration
 .vscode/
 .idea/
+
+# Test and coverage output
+.coverage
+.pytest_cache/
+htmlcov/

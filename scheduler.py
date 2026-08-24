@@ -13,6 +13,18 @@ from datetime import timezone, timedelta
 
 GMT8 = timezone(timedelta(hours=8))
 
+
+def _is_valid_clock(value):
+    """判断字符串是否为有效的 24 小时制时间。"""
+    if not re.fullmatch(r"\d{2}:\d{2}", value):
+        return False
+    try:
+        datetime.datetime.strptime(value, "%H:%M")
+    except ValueError:
+        return False
+    return True
+
+
 def get_run_config():
     """
     从环境变量 RUN_AT 读取并解析运行时间配置。
@@ -21,15 +33,17 @@ def get_run_config():
     - 未设置或格式错误: 默认为 '08:00-10:59'
     返回一个元组 (mode, value)
     """
-    run_at_env = os.environ.get('RUN_AT', '08:00-10:59')
+    run_at_env = os.environ.get('RUN_AT', '08:00-10:59').strip()
 
-    if re.fullmatch(r'\d{2}:\d{2}', run_at_env):
+    if re.fullmatch(r'\d{2}:\d{2}', run_at_env) and _is_valid_clock(run_at_env):
         print(f"检测到固定时间模式: {run_at_env}", flush=True)
         return 'fixed', run_at_env
-    
+
     if re.fullmatch(r'\d{2}:\d{2}-\d{2}:\d{2}', run_at_env):
-        print(f"检测到随机时间范围模式: {run_at_env}", flush=True)
-        return 'range', run_at_env
+        start, end = run_at_env.split('-')
+        if _is_valid_clock(start) and _is_valid_clock(end):
+            print(f"检测到随机时间范围模式: {run_at_env}", flush=True)
+            return 'range', run_at_env
 
     if os.environ.get('RUN_AT'):
         print(f"警告: 环境变量 RUN_AT 的格式 '{run_at_env}' 无效。", flush=True)

@@ -17,7 +17,7 @@
 
 ### 2. 添加到仓库Secrets
 
-1. 进入您的NodeSeek-Signin仓库
+1. 进入您的 `nodeseek-auto-signin` 仓库
 2. 点击 "Settings" → "Secrets and variables" → "Actions"
 3. 点击 "New repository secret"
 4. 名称填写：`GH_PAT`

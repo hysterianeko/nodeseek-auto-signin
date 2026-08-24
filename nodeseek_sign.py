@@ -1,12 +1,25 @@
 # -*- coding: utf-8 -*-
 
 import os
+import re
 import time
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 from curl_cffi import requests
 from yescaptcha import YesCaptchaSolver, YesCaptchaSolverError
 from turnstile_solver import TurnstileSolver, TurnstileSolverError
+from capsolver import CapSolverSolver, CapSolverError
+
+NODESEEK_LOGIN_URL = "https://www.nodeseek.com/signIn.html"
+NODESEEK_ATTENDANCE_URL = "https://www.nodeseek.com/api/attendance"
+NODESEEK_CREDIT_URL = "https://www.nodeseek.com/api/account/credit/page-{}"
+NODESEEK_SITEKEY = "0x4AAAAAAAaNy7leGjewpVyR"
+DEFAULT_USER_AGENT = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Chrome/125.0.0.0 Safari/537.36 Edg/125.0.0.0"
+)
+
 
 def _get_env_str(name: str, default: str = "") -> str:
     """读取环境变量并去掉空白；若为空字符串则回退 default。"""
@@ -127,13 +140,22 @@ def save_cookie_to_github_var(var_name: str, cookie: str):
 
     data = {"name": var_name, "value": cookie}
 
-    response = py_requests.patch(url_check, headers=headers, json=data)
+    try:
+        response = py_requests.patch(url_check, headers=headers, json=data, timeout=25)
+    except py_requests.RequestException as exc:
+        print(f"GitHub变量更新请求失败: {exc}")
+        return False
+
     if response.status_code == 204:
         print(f"GitHub: {var_name} 更新成功")
         return True
     elif response.status_code == 404:
         print(f"GitHub: {var_name} 不存在，尝试创建...")
-        response = py_requests.post(url_create, headers=headers, json=data)
+        try:
+            response = py_requests.post(url_create, headers=headers, json=data, timeout=25)
+        except py_requests.RequestException as exc:
+            print(f"GitHub变量创建请求失败: {exc}")
+            return False
         if response.status_code == 201:
             print(f"GitHub: {var_name} 创建成功")
             return True
@@ -169,7 +191,7 @@ def delete_ql_env(var_name: str):
         else:
             print(f"未找到环境变量: {var_name}")
             return True
-    except (TurnstileSolverError, YesCaptchaSolverError) as e:
+    except (TurnstileSolverError, YesCaptchaSolverError, CapSolverError) as e:
         print(f"验证码解析错误: {e}")
         return None
     except Exception as e:
@@ -215,8 +237,9 @@ def save_cookie_to_file(cookie_str: str):
     try:
         # 确保目录存在
         os.makedirs(os.path.dirname(COOKIE_FILE_PATH), exist_ok=True)
-        with open(COOKIE_FILE_PATH, "w") as f:
+        with open(COOKIE_FILE_PATH, "w", encoding="utf-8") as f:
             f.write(cookie_str)
+        os.chmod(COOKIE_FILE_PATH, 0o600)
         print(f"Cookie 已成功保存到文件: {COOKIE_FILE_PATH}")
         return True
     except Exception as e:
@@ -244,22 +267,35 @@ def save_cookie(var_name: str, cookie: str):
 # ---------------- 登录逻辑 ----------------
 def session_login(user, password, solver_type, api_base_url, client_key):
     try:
-        if solver_type.lower() == "yescaptcha":
+        normalized_solver_type = (solver_type or "turnstile").strip().lower()
+        if normalized_solver_type == "yescaptcha":
             print("正在使用 YesCaptcha 解决验证码...")
             solver = YesCaptchaSolver(
                 api_base_url=api_base_url or "https://api.yescaptcha.com",
                 client_key=client_key
             )
-        else:  # 默认使用 turnstile_solver
+        elif normalized_solver_type == "capsolver":
+            print("正在使用 CapSolver 解决验证码...")
+            solver = CapSolverSolver(
+                api_base_url=api_base_url or "https://api.capsolver.com",
+                client_key=client_key
+            )
+        elif normalized_solver_type == "turnstile":
+            if not api_base_url:
+                raise ValueError("SOLVER_TYPE=turnstile 时必须配置 API_BASE_URL")
             print("正在使用 TurnstileSolver 解决验证码...")
             solver = TurnstileSolver(
                 api_base_url=api_base_url,
                 client_key=client_key
             )
+        else:
+            raise ValueError(
+                f"不支持的 SOLVER_TYPE: {solver_type!r}，可选值为 turnstile、yescaptcha、capsolver"
+            )
 
         token = solver.solve(
-            url="https://www.nodeseek.com/signIn.html",
-            sitekey="0x4AAAAAAAaNy7leGjewpVyR",
+            url=NODESEEK_LOGIN_URL,
+            sitekey=NODESEEK_SITEKEY,
             verbose=True
         )
         if not token:
@@ -273,16 +309,14 @@ def session_login(user, password, solver_type, api_base_url, client_key):
     initial_impersonate = IMPERSONATE_VERSION
     session = requests.Session(impersonate=initial_impersonate)
     print(f"[INFO] 使用初始 impersonate: {initial_impersonate}")
-    session.get("https://www.nodeseek.com/signIn.html")
+    session.get(NODESEEK_LOGIN_URL, timeout=25)
 
     data = {
         "username": user,
-        "password": password,
-        "token": token,
-        "source": "turnstile"
+        "password": password
     }
     headers = {
-        'User-Agent': "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36 Edg/125.0.0.0",
+        'User-Agent': DEFAULT_USER_AGENT,
         'sec-ch-ua': "\"Not A(Brand\";v=\"99\", \"Microsoft Edge\";v=\"121\", \"Chromium\";v=\"121\"",
         'sec-ch-ua-mobile': "?0",
         'sec-ch-ua-platform': "\"Windows\"",
@@ -292,10 +326,17 @@ def session_login(user, password, solver_type, api_base_url, client_key):
         'sec-fetch-dest': "empty",
         'referer': "https://www.nodeseek.com/signIn.html",
         'accept-language': "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6",
-        'Content-Type': "application/json"
+        'Content-Type': "application/json",
+        'x-captcha-token': token,
+        'x-captcha-source': "turnstile"
     }
     try:
-        response = session.post("https://www.nodeseek.com/api/account/signIn", json=data, headers=headers)
+        response = session.post(
+            "https://www.nodeseek.com/api/account/signIn",
+            json=data,
+            headers=headers,
+            timeout=25,
+        )
         resp_json = response.json()
         if resp_json.get("success"):
             cookies = session.cookies.get_dict()
@@ -345,14 +386,14 @@ def sign(ns_cookie, ns_random):
         return "invalid", "无有效Cookie"
         
     headers = {
-        'User-Agent': "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36 Edg/125.0.0.0",
+        'User-Agent': DEFAULT_USER_AGENT,
         'origin': "https://www.nodeseek.com",
         'referer': "https://www.nodeseek.com/board",
         'Content-Type': 'application/json',
         'Cookie': ns_cookie
     }
     try:
-        url = f"https://www.nodeseek.com/api/attendance?random={ns_random}"
+        url = f"{NODESEEK_ATTENDANCE_URL}?random={ns_random}"
         response, used_impersonate, req_err = _request_with_impersonate_fallback(
             "POST", url, headers=headers, json_data={}, timeout=25
         )
@@ -367,10 +408,10 @@ def sign(ns_cookie, ns_random):
             return "forbidden", f"403 Forbidden (impersonate={used_impersonate})"
         data = response.json()
         msg = data.get("message", "")
-        if "鸡腿" in msg or data.get("success"):
-            return "success", msg
-        elif "已完成签到" in msg:
+        if "已完成签到" in msg:
             return "already", msg
+        elif "鸡腿" in msg or data.get("success"):
+            return "success", msg
         elif data.get("status") == 404:
             return "invalid", msg
         return "fail", msg
@@ -387,7 +428,7 @@ def get_signin_stats(ns_cookie, days=30):
         days = 1
     
     headers = {
-        'User-Agent': "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36 Edg/125.0.0.0",
+        'User-Agent': DEFAULT_USER_AGENT,
         'origin': "https://www.nodeseek.com",
         'referer': "https://www.nodeseek.com/board",
         'Cookie': ns_cookie
@@ -406,7 +447,7 @@ def get_signin_stats(ns_cookie, days=30):
         page = 1
         
         while page <= 20:  # 最多查询20页，防止无限循环
-            url = f"https://www.nodeseek.com/api/account/credit/page-{page}"
+            url = NODESEEK_CREDIT_URL.format(page)
             response, used_impersonate, req_err = _request_with_impersonate_fallback(
                 "GET", url, headers=headers, json_data=None, timeout=25
             )
@@ -506,10 +547,10 @@ def print_signin_stats(stats, account_name):
 
 # ---------------- 主流程 ----------------
 if __name__ == "__main__":
-    solver_type = os.getenv("SOLVER_TYPE", "turnstile")
-    api_base_url = os.getenv("API_BASE_URL", "")
-    client_key = os.getenv("CLIENTT_KEY", "") 
-    ns_random = os.getenv("NS_RANDOM", "true")
+    solver_type = _get_env_str("SOLVER_TYPE", "turnstile")
+    api_base_url = _get_env_str("API_BASE_URL")
+    client_key = _get_env_str("CLIENTT_KEY")
+    ns_random = _get_env_str("NS_RANDOM", "true").lower()
 
     env_type = detect_environment()
     print(f"当前运行环境: {env_type}")
@@ -522,15 +563,13 @@ if __name__ == "__main__":
     if user and password:
         accounts.append({"user": user, "password": password})
 
-    index = 1
-    while True:
+    for index in range(1, 51):
         user = os.getenv(f"USER{index}")
         password = os.getenv(f"PASS{index}")
         if user and password:
             accounts.append({"user": user, "password": password})
-            index += 1
-        else:
-            break
+        elif user or password:
+            print(f"警告: USER{index} 和 PASS{index} 必须成对配置，已跳过该账号")
     
     # 读取现有Cookie
     all_cookies = ""
@@ -548,10 +587,14 @@ if __name__ == "__main__":
     else:
         all_cookies = os.getenv("NS_COOKIE", "")
         
-    cookie_list = all_cookies.split("&")
+    cookie_list = re.split(r"[&\r\n]+", all_cookies)
     cookie_list = [c.strip() for c in cookie_list if c.strip()]
     
     print(f"共发现 {len(accounts)} 个账户配置，{len(cookie_list)} 个现有Cookie")
+
+    if not accounts and not cookie_list:
+        print("未发现账号或 Cookie，请至少配置 NS_COOKIE 或 USERn/PASSn")
+        raise SystemExit(1)
     
     if len(accounts) == 0 and len(cookie_list) > 0:
         for i in range(len(cookie_list)):

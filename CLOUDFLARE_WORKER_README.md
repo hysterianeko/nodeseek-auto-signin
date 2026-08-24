@@ -294,7 +294,7 @@ curl -X POST https://your-worker-name.your-subdomain.workers.dev/checkin
 
 ## 许可证
 
-本项目基于原 NodeSeek-Signin 项目改编，遵循相同的开源许可证。
+本 Worker 与主项目使用相同的开源许可证，适合在已有 Worker 部署流程中使用。
 
 ## 免责声明
 
