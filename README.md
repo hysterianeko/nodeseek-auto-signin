@@ -195,7 +195,6 @@ services:
 
   nodeseek-signin:
     image: circling0635/nodeseek-signin:v1.0.0
-    build: .
     container_name: nodeseek-signin
     environment:
       - IN_DOCKER=true
@@ -211,7 +210,8 @@ services:
 启动：
 
 ```bash
-docker compose up -d --build
+docker compose pull
+docker compose up -d
 docker compose logs -f
 ```
 

@@ -95,6 +95,7 @@ TG_USER_ID=your_telegram_user_id
 
 ```bash
 # 默认只启动签到容器，使用远程 Cloudflyer
+docker compose pull
 docker compose up -d
 
 # 如果要在本机跑 Chromium sidecar
@@ -125,7 +126,8 @@ docker compose down
 更新镜像后重新创建容器：
 
 ```bash
-docker compose up -d --build
+docker compose pull
+docker compose up -d
 ```
 
 ## 5. 目录说明
