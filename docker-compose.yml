@@ -31,7 +31,7 @@ services:
       start_period: 40s
 
   nodeseek-signin:
-    image: circling0635/nodeseek-signin:v1.0.0
+    image: circling0635/nodeseek-signin:v1.0.1
     container_name: nodeseek-signin
     environment:
       - IN_DOCKER=true

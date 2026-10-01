@@ -1,6 +1,6 @@
 # Docker Compose 部署
 
-Compose 默认只启动签到容器。验证码可以指向远程 Cloudflyer；本机 Chromium sidecar 用 `--profile local-solver` 按需启动。签到镜像可以继续使用 Docker Hub 上的 `circling0635/nodeseek-signin:v1.0.0`。
+Compose 默认只启动签到容器。验证码可以指向远程 Cloudflyer；本机 Chromium sidecar 用 `--profile local-solver` 按需启动。签到镜像可以继续使用 Docker Hub 上的 `circling0635/nodeseek-signin:v1.0.1`。
 
 ## 1. 准备目录
 
@@ -32,7 +32,7 @@ services:
     shm_size: "256mb"
 
   nodeseek-signin:
-    image: circling0635/nodeseek-signin:v1.0.0
+    image: circling0635/nodeseek-signin:v1.0.1
     container_name: nodeseek-signin
     environment:
       - IN_DOCKER=true

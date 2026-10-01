@@ -25,7 +25,7 @@ NodeSeek 自动签到工具，面向个人 VPS、Docker Compose、GitHub Actions
 已发布镜像：
 
 ```text
-circling0635/nodeseek-signin:v1.0.0
+circling0635/nodeseek-signin:v1.0.1
 ```
 
 镜像中已经包含 Python 运行环境、项目依赖和签到程序。其他服务器不需要克隆 GitHub 源码，也不需要执行 `docker build`；只需要安装 Docker，准备配置文件和 Cookie 持久化目录即可。
@@ -58,7 +58,7 @@ RUN_AT=08:00-10:59
 拉取并启动容器：
 
 ```bash
-docker pull circling0635/nodeseek-signin:v1.0.0
+docker pull circling0635/nodeseek-signin:v1.0.1
 
 docker run -d \
   --name nodeseek-signin \
@@ -66,7 +66,7 @@ docker run -d \
   --env-file .env \
   -e IN_DOCKER=true \
   -v "$(pwd)/cookie:/app/cookie" \
-  circling0635/nodeseek-signin:v1.0.0
+  circling0635/nodeseek-signin:v1.0.1
 ```
 
 启动参数说明：
@@ -154,7 +154,7 @@ docker start nodeseek-signin
 更新到新镜像时，先拉取新镜像，再重新创建容器。重新创建时要保留原来的 `.env` 和 `cookie` 目录挂载：
 
 ```bash
-docker pull circling0635/nodeseek-signin:v1.0.0
+docker pull circling0635/nodeseek-signin:v1.0.1
 docker rm -f nodeseek-signin
 
 docker run -d \
@@ -163,7 +163,7 @@ docker run -d \
   --env-file .env \
   -e IN_DOCKER=true \
   -v "$(pwd)/cookie:/app/cookie" \
-  circling0635/nodeseek-signin:v1.0.0
+  circling0635/nodeseek-signin:v1.0.1
 ```
 
 ### 使用 Docker Compose
@@ -194,7 +194,7 @@ services:
     shm_size: "256mb"
 
   nodeseek-signin:
-    image: circling0635/nodeseek-signin:v1.0.0
+    image: circling0635/nodeseek-signin:v1.0.1
     container_name: nodeseek-signin
     environment:
       - IN_DOCKER=true

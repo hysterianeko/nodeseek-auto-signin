@@ -14,7 +14,7 @@
 
 > ✅ **最小可用集**：至少提供 `NS_COOKIE`，或为每个账号准备对应的 `USERn`/`PASSn` 与验证码服务配置。
 
-> 🐳 **Docker 提示**：使用 `circling0635/nodeseek-signin:v1.0.0` 时，请将 Cookie 放入挂载目录中的 `cookie/NS_COOKIE.txt`。`.env` 通过 `--env-file` 传入，主要用于账号、验证码、调度和通知配置。
+> 🐳 **Docker 提示**：使用 `circling0635/nodeseek-signin:v1.0.1` 时，请将 Cookie 放入挂载目录中的 `cookie/NS_COOKIE.txt`。`.env` 通过 `--env-file` 传入，主要用于账号、验证码、调度和通知配置。
 
 ## 2. 验证码解决方案
 

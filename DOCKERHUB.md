@@ -3,7 +3,7 @@
 镜像：
 
 ```text
-circling0635/nodeseek-signin:v1.0.0
+circling0635/nodeseek-signin:v1.0.1
 ```
 
 镜像已经包含运行所需的 Python、依赖和签到程序。其他服务器只需要安装 Docker，准备 `.env` 和 Cookie 文件即可，不需要克隆源码或执行 `docker build`。
@@ -22,7 +22,7 @@ chmod 600 .env cookie/NS_COOKIE.txt
 拉取镜像：
 
 ```bash
-docker pull circling0635/nodeseek-signin:v1.0.0
+docker pull circling0635/nodeseek-signin:v1.0.1
 ```
 
 启动容器：
@@ -34,7 +34,7 @@ docker run -d \
   --env-file .env \
   -e IN_DOCKER=true \
   -v "$(pwd)/cookie:/app/cookie" \
-  circling0635/nodeseek-signin:v1.0.0
+  circling0635/nodeseek-signin:v1.0.1
 ```
 
 启动参数说明：
@@ -161,7 +161,7 @@ docker rm -f nodeseek-signin
 更新镜像后重新创建容器：
 
 ```bash
-docker pull circling0635/nodeseek-signin:v1.0.0
+docker pull circling0635/nodeseek-signin:v1.0.1
 docker rm -f nodeseek-signin
 
 docker run -d \
@@ -170,7 +170,7 @@ docker run -d \
   --env-file .env \
   -e IN_DOCKER=true \
   -v "$(pwd)/cookie:/app/cookie" \
-  circling0635/nodeseek-signin:v1.0.0
+  circling0635/nodeseek-signin:v1.0.1
 ```
 
 容器启动后，调度器会等待 `RUN_AT` 设置的下一个时间点，不一定会立即签到。
