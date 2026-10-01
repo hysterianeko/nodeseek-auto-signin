@@ -8,19 +8,21 @@
 
 | 变量 | 是否必填 | 默认值 | 作用 | 备注 |
 | --- | --- | --- | --- | --- |
-| `NS_COOKIE` | 建议 | - | 直接使用已有 Cookie 执行签到，支持 `&` 或换行分隔多个账户 | Docker 环境下若设置 `IN_DOCKER=true`，脚本会将最新 Cookie 写入 `cookie/NS_COOKIE.txt` 并从该文件读取 |
+| `NS_COOKIE` | 建议 | - | 非 Docker 环境直接使用已有 Cookie 执行签到，支持 `&` 或换行分隔多个账户 | Docker 环境下若设置 `IN_DOCKER=true`，脚本从 `cookie/NS_COOKIE.txt` 读取并将最新 Cookie 写回该文件；不要只把 `NS_COOKIE` 写入 `.env` |
 | `USER` / `PASS` | 可选 | - | 未编号账号的用户名/密码 | 若 `NS_COOKIE` 失效将尝试登录获取新 Cookie |
 | `USER1` / `PASS1` 以及 `USER2` / `PASS2` … | 可选 | - | 按序号声明多个账号密码 | 支持 1 到 50；每个账号必须成对配置，并与 `NS_COOKIE` 列表按索引对应 |
 
 > ✅ **最小可用集**：至少提供 `NS_COOKIE`，或为每个账号准备对应的 `USERn`/`PASSn` 与验证码服务配置。
 
+> 🐳 **Docker 提示**：使用 `circling0635/nodeseek-signin:v1.0.0` 时，请将 Cookie 放入挂载目录中的 `cookie/NS_COOKIE.txt`。`.env` 通过 `--env-file` 传入，主要用于账号、验证码、调度和通知配置。
+
 ## 2. 验证码解决方案
 
 | 变量 | 是否必填 | 默认值 | 适用场景 |
 | --- | --- | --- | --- |
-| `SOLVER_TYPE` | 可选 | `turnstile` | `turnstile` 表示自建 CloudFreed / Cloudflyer 等接口；`yescaptcha` 或 `capsolver` 表示托管服务 |
-| `API_BASE_URL` | 条件必填 | 空字符串 | 指向自建服务或托管服务的 API 地址，如 `http://127.0.0.1:3000`、`https://api.yescaptcha.com` 或 `https://api.capsolver.com` |
-| `CLIENTT_KEY` | 条件必填 | - | 账号密码登录时的验证码服务密钥；CapSolver 这里填写 API Key（注意沿用项目变量名 `CLIENTT_KEY`） |
+| `SOLVER_TYPE` | 可选 | `turnstile` | `turnstile` / `cloudflyer` 表示自建 Cloudflyer 服务；`yescaptcha` 或 `capsolver` 表示托管服务 |
+| `API_BASE_URL` | 条件必填 | 空字符串 | 指向自建服务或托管服务的 API 地址，如 `http://cloudflyer:3000`、`http://127.0.0.1:3000`、`https://api.yescaptcha.com` 或 `https://api.capsolver.com` |
+| `CLIENTT_KEY` | 条件必填 | - | 账号密码登录时的验证码服务密钥。自建 Cloudflyer 时填写自己生成的随机口令；商业服务则填写对应 API Key（注意沿用项目变量名 `CLIENTT_KEY`） |
 
 > ℹ️ 更多供应商注意事项见 `docs/configuration/solutions.md`。
 
@@ -83,7 +85,7 @@
 
 1. 利用 `.env.example` 复制生成 `.env`，逐项填值，便于与仓库更新保持同步。
 2. 本地调试可运行 `python test_run.py` 验证配置是否生效；Docker/青龙请先确认 `RUN_AT` 是否在可接受的时段内。
-3. 如果启用了账号密码但依然无法自动登录，请确认 `SOLVER_TYPE`、`API_BASE_URL`、`CLIENTT_KEY` 是否匹配对应的验证码服务。使用 CapSolver 时，`SOLVER_TYPE` 应为 `capsolver`，API 地址应为 `https://api.capsolver.com`。
+3. 如果启用了账号密码但依然无法自动登录，请确认 `SOLVER_TYPE`、`API_BASE_URL`、`CLIENTT_KEY` 是否匹配对应的验证码服务。使用自建 Cloudflyer 时，`SOLVER_TYPE` 应为 `turnstile` 或 `cloudflyer`，Docker 内部 API 地址应为 `http://cloudflyer:3000`。
 4. 若通知未触发，可在同一个 shell 中临时导出变量后执行 `python notify.py` 做自检。
 
 通过本文档即可对照自己的部署场景，快速核验环境变量是否齐全，减少因配置遗漏导致的签到失败。

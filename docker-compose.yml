@@ -1,9 +1,39 @@
 services:
+  # Optional local solver. Default is remote Cloudflyer.
+  # Start with: docker compose --profile local-solver up -d
+  cloudflyer:
+    profiles: ["local-solver"]
+    build:
+      context: ./docker/cloudflyer
+    image: nodeseek-cloudflyer:latest
+    container_name: cloudflyer
+    restart: unless-stopped
+    environment:
+      TZ: Asia/Shanghai
+      CLIENTT_KEY: ${CLIENTT_KEY}
+    expose:
+      - "3000"
+    ports:
+      - "127.0.0.1:3000:3000"
+    shm_size: "256mb"
+    mem_limit: 1g
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:3000/docs', timeout=3)",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+
   nodeseek-signin:
+    image: circling0635/nodeseek-signin:v1.0.0
     build: .
-    image: nodeseek-signin:latest
     container_name: nodeseek-signin
-    command: ["python", "scheduler.py"]
     environment:
       - IN_DOCKER=true
     env_file:

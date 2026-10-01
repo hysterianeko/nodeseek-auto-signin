@@ -1,44 +1,39 @@
-import requests
 import time
-from typing import Dict, Optional, Any, Union
-import json
+from typing import Dict, Optional, Union
+
+import requests
+
 
 class TurnstileSolverError(Exception):
-    """Turnstile 解决器错误基类"""
-    pass
+    """Turnstile 解决器错误基类。"""
+
 
 class TurnstileSolver:
     """
-    Turnstile 验证码解决工具
-    
-    使用 CloudFreed API 解决 Turnstile 验证码，获取验证令牌
+    自建 Turnstile 服务客户端。
+
+    兼容 CloudFreed / Cloudflyer 的 createTask / getTaskResult 接口。
     """
-    
+
     def __init__(
-        self, 
+        self,
         api_base_url: str,
         client_key: str,
         max_retries: int = 20,
         retry_interval: int = 6,
-        timeout: int = 60
+        timeout: int = 60,
     ):
-        """
-        初始化 Turnstile 验证码解决器
-        
-        参数:
-            api_base_url: API 基础 URL
-            client_key: API 客户端密钥
-            max_retries: 最大重试次数
-            retry_interval: 重试间隔(秒)
-            timeout: 请求超时时间(秒)
-        """
-        self.create_task_url = f"{api_base_url}/createTask"
-        self.get_result_url = f"{api_base_url}/getTaskResult"
+        if not api_base_url:
+            raise TurnstileSolverError("未配置 API_BASE_URL")
+
+        self.api_base_url = api_base_url.rstrip("/")
+        self.create_task_url = f"{self.api_base_url}/createTask"
+        self.get_result_url = f"{self.api_base_url}/getTaskResult"
         self.client_key = client_key
         self.max_retries = max_retries
         self.retry_interval = retry_interval
         self.timeout = timeout
-    
+
     def solve(
         self,
         url: str,
@@ -46,147 +41,125 @@ class TurnstileSolver:
         action: Optional[str] = None,
         user_agent: Optional[str] = None,
         proxy: Optional[Dict[str, Union[str, int]]] = None,
-        verbose: bool = False
+        verbose: bool = False,
     ) -> str:
-        """
-        解决 Turnstile 验证并返回令牌
-        
-        参数:
-            url: 目标网站 URL
-            sitekey: Turnstile sitekey
-            action: 可选的 action 参数
-            user_agent: 自定义 User-Agent
-            proxy: 代理配置 {"scheme": "http", "host": "127.0.0.1", "port": 8080}
-            verbose: 是否打印详细日志
-            
-        返回:
-            验证令牌字符串
-            
-        异常:
-            TurnstileSolverError: 解决验证码时出错
-        """
+        if not self.client_key:
+            raise TurnstileSolverError("未配置 CLIENTT_KEY")
+
         if verbose:
             print("正在创建 Turnstile 验证任务...")
-            
-        payload_dict = {
+
+        task_id = self._create_task(url, sitekey, action, user_agent, proxy, verbose)
+        token = self._get_task_result(task_id, verbose)
+
+        if verbose:
+            preview = f"{token[:30]}...{token[-10:]}" if len(token) > 40 else token
+            print(f"验证码解决成功: {preview}")
+
+        return token
+
+    def _create_task(
+        self,
+        url: str,
+        sitekey: str,
+        action: Optional[str],
+        user_agent: Optional[str],
+        proxy: Optional[Dict[str, Union[str, int]]],
+        verbose: bool,
+    ) -> str:
+        payload = {
             "clientKey": self.client_key,
             "type": "Turnstile",
             "url": url,
-            "siteKey": sitekey 
+            "siteKey": sitekey,
         }
-        
+        if action:
+            payload["action"] = action
+        if user_agent:
+            payload["userAgent"] = user_agent
         if proxy:
-            payload_dict["proxy"] = proxy
-            
-        payload = json.dumps(payload_dict)
-            
-        try:
-            # 创建任务
-            headers = {"Content-Type": "application/json"}
-            response = requests.post(
-                self.create_task_url, 
-                data=payload,
-                headers=headers,
-                timeout=self.timeout
-            )
-            response.raise_for_status()
-            
+            payload["proxy"] = proxy
+
+        result = self._post_json(self.create_task_url, payload, "创建验证码任务")
+        if verbose:
+            print(f"创建任务响应: {result}")
+
+        task_id = result.get("taskId") or result.get("task_id")
+        if not task_id:
+            raise TurnstileSolverError(f"未能获取到 taskId: {result}")
+        return task_id
+
+    def _get_task_result(self, task_id: str, verbose: bool) -> str:
+        payload = {
+            "clientKey": self.client_key,
+            "taskId": task_id,
+        }
+
+        for attempt in range(1, self.max_retries + 1):
             if verbose:
-                print(f"创建任务状态码: {response.status_code}")
-                print(f"创建任务响应内容: {response.json()}")
-                
-            result = response.json()
-            task_id = result.get('taskId')
-            
-            if not task_id:
-                raise TurnstileSolverError("未能获取到taskId")
-                
-            # 准备获取结果参数
-            result_payload_dict = {
-                "clientKey": self.client_key,
-                "taskId": task_id
-            }
+                print(f"正在获取 Turnstile 验证结果，尝试 {attempt}/{self.max_retries}...")
 
-            # 转换为字符串形式的JSON
-            result_payload = json.dumps(result_payload_dict)
+            result = self._post_json(self.get_result_url, payload, "获取验证码结果")
+            status = (result.get("status") or "").lower()
 
-            # 轮询获取结果
-            for attempt in range(1, self.max_retries + 1):
-                if verbose:
-                    print(f"\n正在获取 Turnstile 验证结果，尝试 {attempt}/{self.max_retries}...")
-                
-                result_response = requests.post(
-                    self.get_result_url, 
-                    data=result_payload,
-                    headers=headers,
-                    timeout=self.timeout
-                )
-                result_response.raise_for_status()
-                
-                if verbose:
-                    print(f"获取结果状态码: {result_response.status_code}")
-                    
-                result_data = result_response.json()
-                
-                if verbose and not result_data.get('status') == 'completed':
-                    print(f"获取结果响应内容: {result_data}")
-                    
-                # 检查任务是否完成
-                if result_data.get('status') == 'completed':
-                    if verbose:
-                        print("Turnstile 验证成功完成!")
-                        
-                    # 调整令牌获取方式，处理嵌套结构
-                    result_obj = result_data.get('result', {})
-                    response_obj = result_obj.get('response', {})
-                    
-                    # 检查响应结构
-                    if isinstance(response_obj, dict) and 'token' in response_obj:
-                        # 新的响应格式
-                        token = response_obj.get('token')
-                    else:
-                        # 兼容旧响应格式
-                        token = response_obj
-                    
-                    if not token:
-                        raise TurnstileSolverError("未找到验证令牌")
-                    
-                    if verbose:
-                        print(f"验证令牌: {token[:30]}...{token[-10:]}")
-                        #print(token)
-                        
-                    return token
-                
-                # 如果未完成且不是最后一次尝试，等待后重试
+            if status in {"processing", "idle", "pending"}:
                 if attempt < self.max_retries:
                     if verbose:
-                        print(f"等待 {self.retry_interval} 秒后重试...")
+                        print(f"任务处理中，等待 {self.retry_interval} 秒后重试...")
                     time.sleep(self.retry_interval)
-            
-            raise TurnstileSolverError(f"达到最大重试次数 ({self.max_retries})，验证失败")
-            
-        except requests.exceptions.RequestException as e:
-            raise TurnstileSolverError(f"请求错误: {e}")
+                continue
 
+            if status != "completed":
+                if verbose:
+                    print(f"获取结果响应内容: {result}")
+                raise TurnstileSolverError(f"验证任务返回未知状态: {status or '空'}")
 
-""" # 简单使用示例
-if __name__ == "__main__":
-    # 示例用法
-    api_base_url = "http://127.0.0.1:3000"
-    client_key = "your_client_key"
-    
-    solver = TurnstileSolver(
-        api_base_url=api_base_url,
-        client_key=client_key,
-        verbose=True
-    )
-    try:
-        token = solver.solve(
-            url="https://www.nodeseek.com/signIn.html",
-            sitekey="0x4AAAAAAAaNy7leGjewpVyR",
-            action="login"
-        )
-        print("成功获取令牌！")
-        print(f"令牌: {token[:30]}...{token[-10:]}")
-    except TurnstileSolverError as e:
-        print(f"解决 Turnstile 验证码失败: {e}") """
+            token = self._extract_token(result)
+            if not token:
+                raise TurnstileSolverError(f"未找到验证令牌: {result}")
+            return token
+
+        raise TurnstileSolverError(f"达到最大重试次数 ({self.max_retries})，验证失败")
+
+    def _post_json(self, endpoint: str, payload: dict, action_name: str) -> dict:
+        try:
+            response = requests.post(
+                endpoint,
+                json=payload,
+                headers={"Content-Type": "application/json"},
+                timeout=self.timeout,
+            )
+        except requests.exceptions.RequestException as exc:
+            raise TurnstileSolverError(f"{action_name}请求失败: {exc}") from exc
+
+        try:
+            result = response.json()
+        except ValueError as exc:
+            raise TurnstileSolverError(
+                f"{action_name}返回了无法解析的响应 ({response.status_code}): {response.text[:300]}"
+            ) from exc
+
+        if response.status_code >= 400:
+            detail = result.get("detail") or result.get("error") or result
+            raise TurnstileSolverError(f"{action_name}失败: {detail}")
+
+        if result.get("errorId"):
+            raise TurnstileSolverError(
+                f"{action_name}失败: {result.get('errorDescription') or result}"
+            )
+
+        return result
+
+    @staticmethod
+    def _extract_token(result: dict) -> Optional[str]:
+        result_obj = result.get("result") or {}
+        if result_obj.get("success") is False:
+            error = result_obj.get("error") or result_obj
+            raise TurnstileSolverError(f"验证任务失败: {error}")
+
+        response_obj = result_obj.get("response", {})
+        if isinstance(response_obj, dict):
+            return response_obj.get("token") or response_obj.get("value")
+        if isinstance(response_obj, str) and response_obj:
+            return response_obj
+        return None
